@@ -12,7 +12,10 @@ Page({
     inputValue: '',
     disabledAddBtn: true,
     items: [],
-    itemsUnfinished: []
+    itemsUnfinished: [],
+    unfinishedCount: '',
+    filterItems: [],
+    filter: 'all',
   },
 
   onLoad: function() {
@@ -48,6 +51,8 @@ Page({
             logged: false
           })
         }
+
+        this.dbOnGetOpenid();
       }
     })
   },
@@ -58,17 +63,14 @@ Page({
       name: 'login',
       data: {},
       success: res => {
-        console.log('[云函数] [login] user openid: ', res.result.openid)
-        app.globalData.openid = res.result.openid
-        wx.navigateTo({
-          url: '../userConsole/userConsole',
-        })
+        console.log('[云函数] [login] user openid: ', res.result.openid);
+        this.setData({
+          openid: res.result.openid
+        });
+        this.dbOnQuery();
       },
       fail: err => {
         console.error('[云函数] [login] 调用失败', err)
-        wx.navigateTo({
-          url: '../deployFunctions/deployFunctions',
-        })
       }
     })
   },
@@ -80,10 +82,25 @@ Page({
       _openid: this.data.openid
     }).get({
       success: res => {
+        let getItems = [];
+        let unfinishedCount = 0;
+        let {filterItems} = this.data;
+
+        getItems = res.data.map(item => {
+          if(!item.item.finished) {
+            unfinishedCount++;
+          }
+          item.item.id = item._id;
+          filterItems.push(item.item);
+          return item.item;
+        });
+
         this.setData({
-          queryResult: JSON.stringify(res.data, null, 2)
+          items: getItems,
+          unfinishedCount: unfinishedCount,
+          filterItems
         })
-        console.log('[数据库] [查询记录] 成功: ', res)
+        console.log('[数据库] [查询记录] 成功: ', getItems);
       },
       fail: err => {
         wx.showToast({
@@ -127,7 +144,7 @@ Page({
 
   dbOnAdd: function (item) {
     const db = wx.cloud.database();
-    let {items, itemsUnfinished, inputValue} = this.data;
+    let {items, filterItems, unfinishedCount, inputValue} = this.data;
 
     db.collection('counters').add({
       data: {
@@ -140,12 +157,14 @@ Page({
           count: 1
         });
         item.id = res._id;
+        console.log('数据库'+item.id);
         items.push(item);
-        itemsUnfinished.push(item);
+        filterItems.push(item);
 
         this.setData({
           items: items,
-          itemsUnfinished: itemsUnfinished,
+          filterItems,
+          unfinishedCount: unfinishedCount + 1,
           inputValue: null,
           disabledAddBtn: true
         });
@@ -167,54 +186,53 @@ Page({
 
   onItemToggle: function(e) {
     const { itemId } = e.currentTarget.dataset;
-    let { items, itemsUnfinished } = this.data;
-    console.log(e.currentTarget.dataset);
+    let { items, unfinishedCount, filter} = this.data;
 
     items = items.map(item => {
-      if (Number(itemId) === item.id) {
+      if (itemId === item.id) {
         item.finished = !item.finished;
+        item.finished ? unfinishedCount-- : unfinishedCount++ ;
       }
       return item;
     });
 
-    itemsUnfinished = itemsUnfinished.filter(item => item.id !== itemId);
+    const filterItems = this.todoFilter(filter, items);
 
     this.setData({
       items,
-      itemsUnfinished
+      unfinishedCount,
+      filterItems
     });
   },
 
   onItemDel: function(e) {
     const {itemId} = e.currentTarget.dataset;
-    let { items, itemsUnfinished } = this.data;
-    console.log(e);
-
-    items = items.filter(item => {
-      return item.id !== itemId;
-    });
-    itemsUnfinished = itemsUnfinished.filter(item => item.id !== itemId);
     
-    this.setData({
-      items,
-      itemsUnfinished
-    });
     this.dbOnDel(itemId);
   },
 
   dbOnDel: function(itemId) {
-    console.log(itemId);
     if (itemId) {
       const db = wx.cloud.database()
       db.collection('counters').doc(itemId).remove({
         success: res => {
+          let { items, unfinishedCount, filter, filterItems} = this.data;
+
+          unfinishedCount--;
+
           wx.showToast({
             title: '删除成功',
-          })
+          });
+
+          items = items.filter(item => {
+            return item.id !== itemId;
+          });
+
           this.setData({
-            counterId: '',
-            count: null,
-          })
+            items,
+            unfinishedCount,
+            filterItems: this.todoFilter(filter, todos)
+          });
         },
         fail: err => {
           wx.showToast({
@@ -231,7 +249,30 @@ Page({
     }
   },
 
+  useFilter(e) {
+    const { filter } = e.currentTarget.dataset;
+    const { items } = this.data;
+    const filterItems = this.todoFilter(filter, items);
+    this.setData({
+      filter,
+      filterItems,
+    });
+  },
 
+  todoFilter(filter, items) {
+    console.log(filter);
+    return filter === 'all' ? items : items.filter(x => x.finished === (filter !== 'unfinished'));
+  },
+
+  clearCompleted() {
+    const { filter } = this.data;
+    let { items } = this.data;
+    items = items.filter(x => !x.completed);
+    this.setData({
+      items,
+      filterItems: this.todoFilter(filter, items),
+    });
+  },
   
 
 
