@@ -1,85 +1,48 @@
-<!--index.wxml-->
-<view class="container">
-
-  <!--提示授权-->
+<!-- index.wxml -->
+<view class="container main">
+  <!-- 提示授权 -->
   <view class='warp' hidden='{{logged}}'>
     <view class="modal">
-      请授权
-      <button open-type="getUserInfo" hover-class='none' bindgetuserinfo="onGetUserInfo">知道啦</button> 
+      欢迎使用简易To do list，请授权我们记录您的信息!
+      <button open-type="getUserInfo" hover-class='none' bindgetuserinfo="onGetUserInfo">
+        知道啦
+      </button>
     </view>
   </view>
-
-  <!--清单输入框-->
+  <!-- 清单输入框 -->
   <view class="add">
-    <input class="input-item" placeholder="添加待办列表" value="{{inputValue}}" bindinput="onGetInput" />
-    <button type="primary" disabled="{{disabledAddBtn}}" class="add-item" bindtap="onAddItem">→</button>
+    <input class="input-item" placeholder="输入待办事项" value="{{inputValue}}" bindinput="onGetInput" />
+    <button type="primary" disabled="{{disabledAddBtn}}" class="add-item" bindtap="onAddItem">
+      确定
+    </button>
   </view>
-
-  <!--清单列表-->
-  <view class="list">
+  <!-- 清单列表 -->
+  <scroll-view class="container list" scroll-y="true">
     <view class="item" wx:for="{{filterItems}}">
-      <icon bindtap="onItemToggle" class="item-circle" data-item-id="{{item.id}}" type="{{ item.finished ? 'success_circle' : 'circle'}}" />
-      <text class="{{ item.finished ? 'todo-content todo-finished' : 'todo-content'}}">{{item.description}}</text>
-      <icon bindtap="onItemDel" class="item-del" data-item-id="{{item.id}}" type="cancel" />
-    </view>
-  </view>
-
-  <scroll-view class="container" scroll-y="true">
-    <view class="footer">
-      <text class="total">{{unfinishedCount}} 个待办</text>
-      <view class="filter">
-        <text bindtap="useFilter"
-          data-filter="all"
-          class="{{ filter === 'all' ? 'filter-item filter-unfinished' : 'filter-item'}}">所有</text>
-        <text bindtap="useFilter"
-          data-filter="unfinished"
-          class="{{ filter === 'unfinished' ? 'filter-item filter-unfinished' : 'filter-item'}}">待办</text>
-        <text bindtap="useFilter"
-          data-filter="finished"
-          class="{{ filter === 'finished' ? 'filter-item filter-unfinished' : 'filter-item'}}">已完成</text>
-      </view>
-      <text wx:if="{{ todos.length - unfinishedCount != 0 }}" class="clear" bindtap="clearCompleted">清除完成项</text>
-      <text wx:else class="clear-empty"></text>
+      <icon size="30" bindtap="onItemToggle" class="item-circle" data-item-id="{{item.id}}" type="{{ item.finished ? 'success_circle' : 'circle'}}" />
+      <text class="{{ item.finished ? 'todo-content todo-finished' : 'todo-content'}}">
+        {{item.description}}
+      </text>
+      <icon size="30" bindtap="onItemDel" class="item-del" data-item-id="{{item.id}}" type="cancel" />
     </view>
   </scroll-view>
-
-  <!-- 用户 openid -->
-  <view class="userinfo">
-    <button 
-      open-type="getUserInfo" 
-      bindgetuserinfo="onGetUserInfo"
-      class="userinfo-avatar"
-      style="background-image: url({{avatarUrl}})"
-    ></button>
-    <view>
-      <button class="userinfo-nickname" bindtap="onGetOpenid">点击获取 openid</button>
+  <!-- 统计数据 -->
+  <view class="footer">
+    <text class="total">{{unfinishedCount}} 个待办</text>
+    <view class="filter">
+      <button size="mini" bindtap="useFilter" data-filter="all" type="{{ filter === 'all' ? 'primary' : 'default'}}">
+        所有
+      </button>
+      <button size="mini" bindtap="useFilter" data-filter="unfinished" type="{{ filter === 'unfinished' ? 'primary' : 'default'}}">
+        待办
+      </button>
+      <button size="mini" bindtap="useFilter" data-filter="finished" type="{{ filter === 'finished' ? 'primary' : 'default'}}">
+        已完成
+      </button>
+      <button size="mini" wx:if="{{ items.length - unfinishedCount != 0 }}" class="clear" bindtap="clearCompleted">
+        清除完成项
+      </button>
+      <button wx:else class="clear-empty"></button>
     </view>
   </view>
-
-
-  <!-- 上传图片 -->
-  <view class="uploader">
-    <view class="uploader-text" bindtap="doUpload">
-      <text>上传图片</text>
-    </view>
-    <view class="uploader-container" wx:if="{{imgUrl}}">
-      <image class="uploader-image" src="{{imgUrl}}" mode="aspectFit" bindtap="previewImg"></image>
-    </view>
-  </view>
-
-
-  <!-- 操作数据库 -->
-  <view class="uploader">
-    <navigator url="../databaseGuide/databaseGuide" open-type="navigate" class="uploader-text">
-      <text>前端操作数据库</text>
-    </navigator>
-  </view>
-
-  <!-- 新建云函数 -->
-  <view class="uploader">
-    <navigator url="../addFunction/addFunction" open-type="navigate" class="uploader-text">
-      <text>快速新建云函数</text>
-    </navigator>
-  </view>
-
 </view>

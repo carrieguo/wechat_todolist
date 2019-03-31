@@ -12,13 +12,12 @@ Page({
     inputValue: '',
     disabledAddBtn: true,
     items: [],
-    itemsUnfinished: [],
     unfinishedCount: '',
     filterItems: [],
     filter: 'all',
   },
 
-  onLoad: function() {
+  onLoad: function () {
     if (!wx.cloud) {
       wx.redirectTo({
         url: '../chooseLib/chooseLib',
@@ -46,18 +45,28 @@ Page({
               })
             }
           })
+          this.dbOnGetOpenid();
         } else {
           this.setData({
             logged: false
           })
         }
-
-        this.dbOnGetOpenid();
       }
     })
   },
 
-  dbOnGetOpenid: function() {
+  onGetUserInfo: function (e) {
+    if (!this.logged && e.detail.userInfo) {
+      this.setData({
+        logged: true,
+        avatarUrl: e.detail.userInfo.avatarUrl,
+        userInfo: e.detail.userInfo
+      })
+      this.dbOnGetOpenid();
+    }
+  },
+
+  dbOnGetOpenid: function () {
     // 调用云函数
     wx.cloud.callFunction({
       name: 'login',
@@ -75,7 +84,7 @@ Page({
     })
   },
 
-  dbOnQuery: function() {
+  dbOnQuery: function () {
     const db = wx.cloud.database()
     // 查询当前用户所有的 counters
     db.collection('counters').where({
@@ -84,21 +93,19 @@ Page({
       success: res => {
         let getItems = [];
         let unfinishedCount = 0;
-        let {filterItems} = this.data;
 
         getItems = res.data.map(item => {
-          if(!item.item.finished) {
+          if (!item.item.finished) {
             unfinishedCount++;
           }
           item.item.id = item._id;
-          filterItems.push(item.item);
           return item.item;
         });
 
         this.setData({
           items: getItems,
           unfinishedCount: unfinishedCount,
-          filterItems
+          filterItems: getItems
         })
         console.log('[数据库] [查询记录] 成功: ', getItems);
       },
@@ -112,17 +119,7 @@ Page({
     })
   },
 
-  onGetUserInfo: function(e) {
-    if (!this.logged && e.detail.userInfo) {
-      this.setData({
-        logged: true,
-        avatarUrl: e.detail.userInfo.avatarUrl,
-        userInfo: e.detail.userInfo
-      })
-    }
-  },
-
-  onGetInput: function(e) {
+  onGetInput: function (e) {
     if (!e.detail.value)
       return;
 
@@ -132,19 +129,20 @@ Page({
     })
   },
 
-  onAddItem: function(e) {
+  onAddItem: function (e) {
     let item = {
       logDate: new Date().getTime(),
       description: this.data.inputValue,
       finished: false,
     };
-
+    
     this.dbOnAdd(item);
   },
 
   dbOnAdd: function (item) {
+   
     const db = wx.cloud.database();
-    let {items, filterItems, unfinishedCount, inputValue} = this.data;
+    let { items, filter, filterItems, unfinishedCount, inputValue } = this.data;
 
     db.collection('counters').add({
       data: {
@@ -152,27 +150,28 @@ Page({
       },
 
       success: res => {
-      
-        this.setData({
-          count: 1
-        });
+
         item.id = res._id;
-        console.log('数据库'+item.id);
+        
+        wx.showToast({
+          title: '新增记录成功',
+        })
+        
+        console.log('filterItems');
+        console.log(this.data.filterItems);
         items.push(item);
-        filterItems.push(item);
+
+        
+        filterItems = this.todoFilter(filter, items);
+        console.log(this.data.filterItems);
 
         this.setData({
-          items: items,
+          items,
           filterItems,
           unfinishedCount: unfinishedCount + 1,
           inputValue: null,
           disabledAddBtn: true
         });
-
-        wx.showToast({
-          title: '新增记录成功',
-        })
-        console.log('[数据库] [新增记录] 成功，记录 _id: ', res._id)
       },
       fail: err => {
         wx.showToast({
@@ -184,19 +183,36 @@ Page({
     })
   },
 
-  onItemToggle: function(e) {
+  onItemToggle: function (e) {
+    
     const { itemId } = e.currentTarget.dataset;
-    let { items, unfinishedCount, filter} = this.data;
+    let { items, unfinishedCount, filter } = this.data;
+    let flag;
+    
 
     items = items.map(item => {
+      
       if (itemId === item.id) {
         item.finished = !item.finished;
-        item.finished ? unfinishedCount-- : unfinishedCount++ ;
+        item.finished ? unfinishedCount-- : unfinishedCount++;
+        flag = item.finished;
       }
       return item;
     });
 
     const filterItems = this.todoFilter(filter, items);
+    const db = wx.cloud.database();
+
+    db.collection('counters').doc(itemId).update({
+      // data 传入需要局部更新的数据
+      data: {
+        // 
+        'item.finished': flag
+      },
+      success(res) {
+        console.log(res)
+      }
+    });
 
     this.setData({
       items,
@@ -205,34 +221,37 @@ Page({
     });
   },
 
-  onItemDel: function(e) {
-    const {itemId} = e.currentTarget.dataset;
-    
+  onItemDel: function (e) {
+    const { itemId } = e.currentTarget.dataset;
+
     this.dbOnDel(itemId);
   },
 
-  dbOnDel: function(itemId) {
+  dbOnDel: function (itemId) {
     if (itemId) {
       const db = wx.cloud.database()
       db.collection('counters').doc(itemId).remove({
         success: res => {
-          let { items, unfinishedCount, filter, filterItems} = this.data;
-
-          unfinishedCount--;
-
+          let { items, unfinishedCount, filter, filterItems } = this.data;
+        
           wx.showToast({
             title: '删除成功',
           });
 
           items = items.filter(item => {
+            if(item.id===itemId) {
+              unfinishedCount--;
+            }
             return item.id !== itemId;
           });
 
           this.setData({
             items,
             unfinishedCount,
-            filterItems: this.todoFilter(filter, todos)
+            filterItems: this.todoFilter(filter, items)
           });
+          console.log(this.data.filterItems);
+          console.log(this.data.items);
         },
         fail: err => {
           wx.showToast({
@@ -247,6 +266,33 @@ Page({
         title: '无记录可删，请见创建一个记录',
       })
     }
+  },
+
+  clearCompleted() {
+    let { items, filter } = this.data;
+    let that = this;
+
+    wx.cloud.callFunction({
+      // 云函数名称
+      name: 'delFinished',
+      // 传给云函数的参数
+      data: {
+      },
+      success: res => {
+        console.log(res) // 3
+        
+        items = items.filter(x => !x.finished);
+        this.setData({
+          items,
+          filterItems: this.todoFilter(filter, items),
+        });
+        console.log(this.data.items);
+        console.log(this.data.filterItems);
+      },
+      
+      fail: console.error
+    });
+    
   },
 
   useFilter(e) {
@@ -264,16 +310,19 @@ Page({
     return filter === 'all' ? items : items.filter(x => x.finished === (filter !== 'unfinished'));
   },
 
-  clearCompleted() {
-    const { filter } = this.data;
-    let { items } = this.data;
-    items = items.filter(x => !x.completed);
-    this.setData({
-      items,
-      filterItems: this.todoFilter(filter, items),
-    });
-  },
-  
+  // clearCompleted() {
+  //   const { filter } = this.data;
+  //   let { items } = this.data;
+  //   db.collection('items').where({
+  //     done: true
+  //   }).remove()
+  //   items = items.filter(x => !x.completed);
+  //   this.setData({
+  //     items,
+  //     filterItems: this.todoFilter(filter, items),
+  //   });
+  // },
+
 
 
 
@@ -282,7 +331,7 @@ Page({
 
   /////////////////////////////////////////////////////////
 
-  onGetOpenid: function() {
+  onGetOpenid: function () {
     // 调用云函数
     wx.cloud.callFunction({
       name: 'login',
@@ -317,7 +366,7 @@ Page({
         })
 
         const filePath = res.tempFilePaths[0]
-        
+
         // 上传图片
         const cloudPath = 'my-image' + filePath.match(/\.[^.]+?$/)[0]
         wx.cloud.uploadFile({
@@ -329,7 +378,7 @@ Page({
             app.globalData.fileID = res.fileID
             app.globalData.cloudPath = cloudPath
             app.globalData.imagePath = filePath
-            
+
             wx.navigateTo({
               url: '../storageConsole/storageConsole'
             })
