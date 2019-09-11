@@ -18,7 +18,7 @@
   </view>
   <!-- 清单列表 -->
   <scroll-view class="container list" scroll-y="true">
-    <view class="item" wx:for="{{filterItems}}">
+    <view class="item" wx:key="{{item.id}}" wx:for="{{filterItems}}">
       <icon size="30" bindtap="onItemToggle" class="item-circle" data-item-id="{{item.id}}" type="{{ item.finished ? 'success_circle' : 'circle'}}" />
       <text class="{{ item.finished ? 'todo-content todo-finished' : 'todo-content'}}">
         {{item.description}}
